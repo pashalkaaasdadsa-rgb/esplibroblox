@@ -11,10 +11,25 @@ local ESP = {
     HealthText = {Enabled = true, Color = Color3.fromRGB(255, 255, 255), Size = 11, Font = Drawing.Fonts.Plex, Outline = true},
     Weapon = {Enabled = true, Color = Color3.fromRGB(200, 200, 200), Size = 11, Font = Drawing.Fonts.Plex, Outline = true},
     Distance = {Enabled = true, Color = Color3.fromRGB(200, 200, 200), Size = 11, Font = Drawing.Fonts.Plex, Outline = true},
-    Skeleton = {Enabled = true, Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5, UsePlayerColor = true},
+    Skeleton = {Enabled = true, Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5},
     Tracer = {Enabled = false, Color = Color3.fromRGB(255, 255, 255), Thickness = 1, Origin = "Bottom"},
-    Chams = {Enabled = true, FillColor = Color3.fromRGB(128, 0, 255), OutlineColor = Color3.fromRGB(255, 255, 255), FillTransparency = 0.6, OutlineTransparency = 0},
-    Glow = {Enabled = false, Color = Color3.fromRGB(128, 0, 255), Transparency = 0.5},
+
+    Chams = {
+        Enabled = true,
+        FillColor = Color3.fromRGB(128, 0, 255),
+        OutlineColor = Color3.fromRGB(255, 255, 255),
+        FillTransparency = 0.6,
+        OutlineTransparency = 0
+    },
+
+    Glow = {
+        Enabled = true,
+        VisibleColor = Color3.fromRGB(128, 0, 255),
+        HiddenColor = Color3.fromRGB(255, 50, 50),
+        VisibleTransparency = 0.7,
+        HiddenTransparency = 0.5,
+        OutlineTransparency = 0
+    },
 
     EnemyColor = Color3.fromRGB(255, 50, 50),
     TeamColor = Color3.fromRGB(50, 255, 50),
@@ -90,12 +105,6 @@ local function GetPartEdge(char, name, yOffset)
     return (p.CFrame * CF(0, p.Size.Y * yOffset, 0)).Position
 end
 
-local function GetPartRelative(char, name, x, y, z)
-    local p = char:FindFirstChild(name)
-    if not p then return nil end
-    return (p.CFrame * CF(x, y, z)).Position
-end
-
 local function TryAttach(char, attempts)
     for _, attempt in ipairs(attempts) do
         local part = char:FindFirstChild(attempt[1])
@@ -157,11 +166,8 @@ local function GetJointPositions(character, humanoid)
             {"RightHand", "RightWristRigAttachment"}
         }) or GetPartPos(character, "RightHand")
 
-        joints.LeftHand = GetPartEdge(character, "LeftHand", -0.5)
-            or joints.LeftWrist
-
-        joints.RightHand = GetPartEdge(character, "RightHand", -0.5)
-            or joints.RightWrist
+        joints.LeftHand = GetPartEdge(character, "LeftHand", -0.5) or joints.LeftWrist
+        joints.RightHand = GetPartEdge(character, "RightHand", -0.5) or joints.RightWrist
 
         joints.LeftHip = TryAttach(character, {
             {"LowerTorso", "LeftHipRigAttachment"},
@@ -308,13 +314,6 @@ local function GetHealthColor(health, maxHealth)
     return C3(255, 255 * r * 2, 0)
 end
 
-local function GetPlayerColor(player)
-    if ESP.UseTeamColors and player.Team then
-        return player.Team == LocalPlayer.Team and ESP.TeamColor or ESP.EnemyColor
-    end
-    return ESP.EnemyColor
-end
-
 local function IsAlive(player)
     local char = player.Character
     if not char then return false end
@@ -362,7 +361,9 @@ function ESP:CreateESPObjects(player)
         TracerLine = NewDrawing("Line", {Visible = false, Color = C3(255, 255, 255), Thickness = 1}),
         SkeletonLines = {},
         SkeletonOutlines = {},
-        Highlight = nil
+        ChamsHighlight = nil,
+        GlowVisible = nil,
+        GlowHidden = nil
     }
 
     for i = 1, 12 do
@@ -397,8 +398,14 @@ function ESP:RemoveESPObjects(player)
     for _, l in ipairs(obj.SkeletonLines) do l:Remove() end
     for _, l in ipairs(obj.SkeletonOutlines) do l:Remove() end
 
-    if obj.Highlight and obj.Highlight.Parent then
-        obj.Highlight:Destroy()
+    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
+        obj.ChamsHighlight:Destroy()
+    end
+    if obj.GlowVisible and obj.GlowVisible.Parent then
+        obj.GlowVisible:Destroy()
+    end
+    if obj.GlowHidden and obj.GlowHidden.Parent then
+        obj.GlowHidden:Destroy()
     end
 
     self.Objects[player] = nil
@@ -421,8 +428,83 @@ function ESP:HideAll(obj)
     for _, l in ipairs(obj.SkeletonLines) do l.Visible = false end
     for _, l in ipairs(obj.SkeletonOutlines) do l.Visible = false end
 
-    if obj.Highlight and obj.Highlight.Parent then
-        obj.Highlight.Enabled = false
+    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
+        obj.ChamsHighlight.Enabled = false
+    end
+    if obj.GlowVisible and obj.GlowVisible.Parent then
+        obj.GlowVisible.Enabled = false
+    end
+    if obj.GlowHidden and obj.GlowHidden.Parent then
+        obj.GlowHidden.Enabled = false
+    end
+end
+
+function ESP:UpdateHighlights(obj, character)
+    if self.Chams.Enabled then
+        if not obj.ChamsHighlight or not obj.ChamsHighlight.Parent then
+            local hl = Instance.new("Highlight")
+            hl.Name = "_chams"
+            hl.Adornee = character
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = character
+            obj.ChamsHighlight = hl
+        end
+        obj.ChamsHighlight.Adornee = character
+        obj.ChamsHighlight.FillColor = self.Chams.FillColor
+        obj.ChamsHighlight.OutlineColor = self.Chams.OutlineColor
+        obj.ChamsHighlight.FillTransparency = self.Chams.FillTransparency
+        obj.ChamsHighlight.OutlineTransparency = self.Chams.OutlineTransparency
+        obj.ChamsHighlight.Enabled = true
+    else
+        if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
+            obj.ChamsHighlight.Enabled = false
+        end
+    end
+
+    if self.Glow.Enabled then
+        local glowFolder = character:FindFirstChild("_glowContainer")
+        if not glowFolder then
+            glowFolder = Instance.new("Model")
+            glowFolder.Name = "_glowContainer"
+            glowFolder.Parent = character
+        end
+
+        if not obj.GlowVisible or not obj.GlowVisible.Parent then
+            local hl = Instance.new("Highlight")
+            hl.Name = "_glowVis"
+            hl.Adornee = character
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = glowFolder
+            obj.GlowVisible = hl
+        end
+        obj.GlowVisible.Adornee = character
+        obj.GlowVisible.FillColor = self.Glow.VisibleColor
+        obj.GlowVisible.OutlineColor = self.Glow.VisibleColor
+        obj.GlowVisible.FillTransparency = 1
+        obj.GlowVisible.OutlineTransparency = self.Glow.OutlineTransparency
+        obj.GlowVisible.Enabled = true
+
+        if not obj.GlowHidden or not obj.GlowHidden.Parent then
+            local hl = Instance.new("Highlight")
+            hl.Name = "_glowHid"
+            hl.Adornee = character
+            hl.DepthMode = Enum.HighlightDepthMode.Occluded
+            hl.Parent = glowFolder
+            obj.GlowHidden = hl
+        end
+        obj.GlowHidden.Adornee = character
+        obj.GlowHidden.FillColor = self.Glow.HiddenColor
+        obj.GlowHidden.OutlineColor = self.Glow.HiddenColor
+        obj.GlowHidden.FillTransparency = self.Glow.HiddenTransparency
+        obj.GlowHidden.OutlineTransparency = self.Glow.OutlineTransparency
+        obj.GlowHidden.Enabled = true
+    else
+        if obj.GlowVisible and obj.GlowVisible.Parent then
+            obj.GlowVisible.Enabled = false
+        end
+        if obj.GlowHidden and obj.GlowHidden.Parent then
+            obj.GlowHidden.Enabled = false
+        end
     end
 end
 
@@ -450,18 +532,15 @@ function ESP:UpdatePlayer(player)
         return
     end
 
-    local color = GetPlayerColor(player)
     local health = humanoid.Health
     local maxHealth = humanoid.MaxHealth
     local healthColor = GetHealthColor(health, maxHealth)
 
     if self.Box.Enabled and not self.Box3D.Enabled then
-        local bxColor = self.Box.Color == C3(255, 255, 255) and color or self.Box.Color
-
         obj.Box.Visible = true
         obj.Box.Position = bb.TopLeft
         obj.Box.Size = V2(bb.Width, bb.Height)
-        obj.Box.Color = bxColor
+        obj.Box.Color = self.Box.Color
         obj.Box.Thickness = self.Box.Thickness
 
         if self.Box.Outline then
@@ -477,7 +556,7 @@ function ESP:UpdatePlayer(player)
             obj.BoxFill.Visible = true
             obj.BoxFill.Position = bb.TopLeft
             obj.BoxFill.Size = V2(bb.Width, bb.Height)
-            obj.BoxFill.Color = bxColor
+            obj.BoxFill.Color = self.Box.Color
             obj.BoxFill.Transparency = self.Box.FillTransparency
         else
             obj.BoxFill.Visible = false
@@ -496,12 +575,11 @@ function ESP:UpdatePlayer(player)
                 {5,6},{5,7},{6,8},{7,8},
                 {1,5},{2,6},{3,7},{4,8}
             }
-            local bxColor = self.Box3D.Color == C3(255,255,255) and color or self.Box3D.Color
             for i, edge in ipairs(edges) do
                 obj.Box3DLines[i].Visible = true
                 obj.Box3DLines[i].From = corners[edge[1]]
                 obj.Box3DLines[i].To = corners[edge[2]]
-                obj.Box3DLines[i].Color = bxColor
+                obj.Box3DLines[i].Color = self.Box3D.Color
                 obj.Box3DLines[i].Thickness = self.Box3D.Thickness
             end
         else
@@ -516,7 +594,7 @@ function ESP:UpdatePlayer(player)
     if self.Name.Enabled then
         obj.NameText.Visible = true
         obj.NameText.Text = player.DisplayName
-        obj.NameText.Color = self.Name.Color == C3(255,255,255) and color or self.Name.Color
+        obj.NameText.Color = self.Name.Color
         obj.NameText.Size = self.Name.Size
         obj.NameText.Font = self.Name.Font
 
@@ -613,11 +691,10 @@ function ESP:UpdatePlayer(player)
         else
             from = V2(sv.X / 2, sv.Y / 2)
         end
-
         obj.TracerLine.Visible = true
         obj.TracerLine.From = from
         obj.TracerLine.To = V2(bb.Center.X, bb.Bottom.Y)
-        obj.TracerLine.Color = self.Tracer.Color == C3(255,255,255) and color or self.Tracer.Color
+        obj.TracerLine.Color = self.Tracer.Color
         obj.TracerLine.Thickness = self.Tracer.Thickness
     else
         obj.TracerLine.Visible = false
@@ -625,7 +702,6 @@ function ESP:UpdatePlayer(player)
 
     if self.Skeleton.Enabled then
         local joints = GetJointPositions(character, humanoid)
-        local skelColor = self.Skeleton.UsePlayerColor and color or self.Skeleton.Color
 
         for i, bone in ipairs(BONES) do
             local p1 = joints[bone[1]]
@@ -645,7 +721,7 @@ function ESP:UpdatePlayer(player)
                     obj.SkeletonLines[i].Visible = true
                     obj.SkeletonLines[i].From = sp1
                     obj.SkeletonLines[i].To = sp2
-                    obj.SkeletonLines[i].Color = skelColor
+                    obj.SkeletonLines[i].Color = self.Skeleton.Color
                     obj.SkeletonLines[i].Thickness = self.Skeleton.Thickness
                 else
                     obj.SkeletonOutlines[i].Visible = false
@@ -668,48 +744,7 @@ function ESP:UpdatePlayer(player)
         end
     end
 
-    if self.Chams.Enabled then
-        if not obj.Highlight or not obj.Highlight.Parent then
-            local hl = Instance.new("Highlight")
-            hl.Adornee = character
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.FillColor = self.Chams.FillColor
-            hl.OutlineColor = self.Chams.OutlineColor
-            hl.FillTransparency = self.Chams.FillTransparency
-            hl.OutlineTransparency = self.Chams.OutlineTransparency
-            hl.Parent = character
-            obj.Highlight = hl
-        else
-            obj.Highlight.Adornee = character
-            obj.Highlight.FillColor = self.Chams.FillColor
-            obj.Highlight.OutlineColor = self.Chams.OutlineColor
-            obj.Highlight.FillTransparency = self.Chams.FillTransparency
-            obj.Highlight.OutlineTransparency = self.Chams.OutlineTransparency
-            obj.Highlight.Enabled = true
-        end
-    elseif self.Glow.Enabled then
-        if not obj.Highlight or not obj.Highlight.Parent then
-            local hl = Instance.new("Highlight")
-            hl.Adornee = character
-            hl.DepthMode = Enum.HighlightDepthMode.Occluded
-            hl.FillColor = self.Glow.Color
-            hl.OutlineColor = self.Glow.Color
-            hl.FillTransparency = self.Glow.Transparency
-            hl.OutlineTransparency = 0
-            hl.Parent = character
-            obj.Highlight = hl
-        else
-            obj.Highlight.Adornee = character
-            obj.Highlight.FillColor = self.Glow.Color
-            obj.Highlight.OutlineColor = self.Glow.Color
-            obj.Highlight.FillTransparency = self.Glow.Transparency
-            obj.Highlight.Enabled = true
-        end
-    else
-        if obj.Highlight and obj.Highlight.Parent then
-            obj.Highlight.Enabled = false
-        end
-    end
+    self:UpdateHighlights(obj, character)
 end
 
 function ESP:Init()
