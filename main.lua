@@ -31,10 +31,6 @@ local ESP = {
         OutlineTransparency = 0
     },
 
-    EnemyColor = Color3.fromRGB(255, 50, 50),
-    TeamColor = Color3.fromRGB(50, 255, 50),
-    UseTeamColors = false,
-
     Objects = {},
     Connections = {}
 }
@@ -49,28 +45,7 @@ local V3 = Vector3.new
 local CF = CFrame.new
 local C3 = Color3.fromRGB
 
-local MAX_BONES = 18
-
-local BONES = {
-    {"HeadTop", "Neck"},
-    {"Neck", "LeftShoulder"},
-    {"Neck", "RightShoulder"},
-    {"LeftShoulder", "LeftElbow"},
-    {"LeftElbow", "LeftWrist"},
-    {"LeftWrist", "LeftHand"},
-    {"RightShoulder", "RightElbow"},
-    {"RightElbow", "RightWrist"},
-    {"RightWrist", "RightHand"},
-    {"Neck", "UpperSpine"},
-    {"UpperSpine", "LowerSpine"},
-    {"LowerSpine", "LeftHip"},
-    {"LowerSpine", "RightHip"},
-    {"LeftHip", "LeftKnee"},
-    {"LeftKnee", "LeftAnkle"},
-    {"LeftAnkle", "LeftFoot"},
-    {"RightHip", "RightKnee"},
-    {"RightKnee", "RightAnkle"},
-}
+local MAX_SKELETON = 24
 
 local function NewDrawing(class, props)
     local obj = Drawing.new(class)
@@ -85,172 +60,50 @@ local function WorldToScreen(pos)
     return V2(vec.X, vec.Y), onScreen, vec.Z
 end
 
-local function GetAttachWorldPos(part, attachName)
-    if not part then return nil end
-    local attach = part:FindFirstChild(attachName)
-    if attach and attach:IsA("Attachment") then
-        return part.CFrame:PointToWorldSpace(attach.Position)
-    end
-    return nil
-end
+local function GetSkeletonLines(character)
+    local result = {}
+    local inMotor = {}
+    local outMotors = {}
 
-local function GetPartPos(char, name)
-    local p = char:FindFirstChild(name)
-    return p and p.Position or nil
-end
-
-local function GetPartEdge(char, name, yOffset)
-    local p = char:FindFirstChild(name)
-    if not p then return nil end
-    return (p.CFrame * CF(0, p.Size.Y * yOffset, 0)).Position
-end
-
-local function TryAttach(char, attempts)
-    for _, attempt in ipairs(attempts) do
-        local part = char:FindFirstChild(attempt[1])
-        if part then
-            local pos = GetAttachWorldPos(part, attempt[2])
-            if pos then return pos end
-        end
-    end
-    return nil
-end
-
-local function GetJointPositions(character, humanoid)
-    local joints = {}
-    local isR15 = humanoid.RigType == Enum.HumanoidRigType.R15
-
-    if isR15 then
-        joints.HeadTop = GetPartEdge(character, "Head", 0.5)
-
-        joints.Neck = TryAttach(character, {
-            {"Head", "NeckRigAttachment"},
-            {"UpperTorso", "NeckRigAttachment"}
-        }) or GetPartEdge(character, "UpperTorso", 0.5)
-
-        joints.UpperSpine = GetPartPos(character, "UpperTorso")
-            or TryAttach(character, {{"UpperTorso", "WaistRigAttachment"}})
-
-        joints.LowerSpine = TryAttach(character, {
-            {"LowerTorso", "WaistRigAttachment"},
-            {"UpperTorso", "WaistRigAttachment"}
-        }) or GetPartPos(character, "LowerTorso")
-
-        joints.LeftShoulder = TryAttach(character, {
-            {"UpperTorso", "LeftShoulderRigAttachment"},
-            {"LeftUpperArm", "LeftShoulderRigAttachment"}
-        })
-
-        joints.RightShoulder = TryAttach(character, {
-            {"UpperTorso", "RightShoulderRigAttachment"},
-            {"RightUpperArm", "RightShoulderRigAttachment"}
-        })
-
-        joints.LeftElbow = TryAttach(character, {
-            {"LeftUpperArm", "LeftElbowRigAttachment"},
-            {"LeftLowerArm", "LeftElbowRigAttachment"}
-        }) or GetPartPos(character, "LeftLowerArm")
-
-        joints.RightElbow = TryAttach(character, {
-            {"RightUpperArm", "RightElbowRigAttachment"},
-            {"RightLowerArm", "RightElbowRigAttachment"}
-        }) or GetPartPos(character, "RightLowerArm")
-
-        joints.LeftWrist = TryAttach(character, {
-            {"LeftLowerArm", "LeftWristRigAttachment"},
-            {"LeftHand", "LeftWristRigAttachment"}
-        }) or GetPartPos(character, "LeftHand")
-
-        joints.RightWrist = TryAttach(character, {
-            {"RightLowerArm", "RightWristRigAttachment"},
-            {"RightHand", "RightWristRigAttachment"}
-        }) or GetPartPos(character, "RightHand")
-
-        joints.LeftHand = GetPartEdge(character, "LeftHand", -0.5) or joints.LeftWrist
-        joints.RightHand = GetPartEdge(character, "RightHand", -0.5) or joints.RightWrist
-
-        joints.LeftHip = TryAttach(character, {
-            {"LowerTorso", "LeftHipRigAttachment"},
-            {"LeftUpperLeg", "LeftHipRigAttachment"}
-        })
-
-        joints.RightHip = TryAttach(character, {
-            {"LowerTorso", "RightHipRigAttachment"},
-            {"RightUpperLeg", "RightHipRigAttachment"}
-        })
-
-        joints.LeftKnee = TryAttach(character, {
-            {"LeftUpperLeg", "LeftKneeRigAttachment"},
-            {"LeftLowerLeg", "LeftKneeRigAttachment"}
-        }) or GetPartPos(character, "LeftLowerLeg")
-
-        joints.RightKnee = TryAttach(character, {
-            {"RightUpperLeg", "RightKneeRigAttachment"},
-            {"RightLowerLeg", "RightKneeRigAttachment"}
-        }) or GetPartPos(character, "RightLowerLeg")
-
-        joints.LeftAnkle = TryAttach(character, {
-            {"LeftLowerLeg", "LeftAnkleRigAttachment"},
-            {"LeftFoot", "LeftAnkleRigAttachment"}
-        }) or GetPartPos(character, "LeftFoot")
-
-        joints.RightAnkle = TryAttach(character, {
-            {"RightLowerLeg", "RightAnkleRigAttachment"},
-            {"RightFoot", "RightAnkleRigAttachment"}
-        }) or GetPartPos(character, "RightFoot")
-
-        joints.LeftFoot = GetPartEdge(character, "LeftFoot", -0.5) or joints.LeftAnkle
-        joints.RightFoot = GetPartEdge(character, "RightFoot", -0.5) or joints.RightAnkle
-
-    else
-        local torso = character:FindFirstChild("Torso")
-        if torso then
-            local cf = torso.CFrame
-            local sz = torso.Size
-            joints.Neck = (cf * CF(0, sz.Y / 2, 0)).Position
-            joints.UpperSpine = (cf * CF(0, sz.Y / 4, 0)).Position
-            joints.LowerSpine = (cf * CF(0, -sz.Y / 2, 0)).Position
-            joints.LeftShoulder = (cf * CF(-sz.X / 2 - 0.15, sz.Y / 2 - 0.1, 0)).Position
-            joints.RightShoulder = (cf * CF(sz.X / 2 + 0.15, sz.Y / 2 - 0.1, 0)).Position
-            joints.LeftHip = (cf * CF(-0.5, -sz.Y / 2, 0)).Position
-            joints.RightHip = (cf * CF(0.5, -sz.Y / 2, 0)).Position
-        end
-
-        local head = character:FindFirstChild("Head")
-        if head then
-            joints.HeadTop = (head.CFrame * CF(0, head.Size.Y / 2, 0)).Position
-        end
-
-        local lArm = character:FindFirstChild("Left Arm")
-        if lArm then
-            joints.LeftElbow = lArm.Position
-            joints.LeftWrist = (lArm.CFrame * CF(0, -lArm.Size.Y / 2 + 0.1, 0)).Position
-            joints.LeftHand = (lArm.CFrame * CF(0, -lArm.Size.Y / 2, 0)).Position
-        end
-
-        local rArm = character:FindFirstChild("Right Arm")
-        if rArm then
-            joints.RightElbow = rArm.Position
-            joints.RightWrist = (rArm.CFrame * CF(0, -rArm.Size.Y / 2 + 0.1, 0)).Position
-            joints.RightHand = (rArm.CFrame * CF(0, -rArm.Size.Y / 2, 0)).Position
-        end
-
-        local lLeg = character:FindFirstChild("Left Leg")
-        if lLeg then
-            joints.LeftKnee = lLeg.Position
-            joints.LeftAnkle = (lLeg.CFrame * CF(0, -lLeg.Size.Y / 2, 0)).Position
-            joints.LeftFoot = joints.LeftAnkle
-        end
-
-        local rLeg = character:FindFirstChild("Right Leg")
-        if rLeg then
-            joints.RightKnee = rLeg.Position
-            joints.RightAnkle = (rLeg.CFrame * CF(0, -rLeg.Size.Y / 2, 0)).Position
-            joints.RightFoot = joints.RightAnkle
+    for _, desc in ipairs(character:GetDescendants()) do
+        if desc:IsA("Motor6D") then
+            local p0, p1 = desc.Part0, desc.Part1
+            if p0 and p1 and p0.Parent == character and p1.Parent == character then
+                inMotor[p1] = desc
+                if not outMotors[p0] then
+                    outMotors[p0] = {}
+                end
+                outMotors[p0][#outMotors[p0] + 1] = desc
+            end
         end
     end
 
-    return joints
+    for part, motor in pairs(inMotor) do
+        if not motor.Part0 or not motor.Part0.Parent then break end
+
+        local jointPos = (motor.Part0.CFrame * motor.C0).Position
+        local children = outMotors[part]
+
+        if children then
+            for _, child in ipairs(children) do
+                if child.Part0 and child.Part0.Parent then
+                    local childPos = (child.Part0.CFrame * child.C0).Position
+                    result[#result + 1] = {jointPos, childPos}
+                end
+            end
+        else
+            local name = part.Name
+            if name == "Head" then
+                result[#result + 1] = {jointPos, (part.CFrame * CF(0, part.Size.Y * 0.4, 0)).Position}
+            elseif name:find("Hand") or name:find("Arm") then
+                result[#result + 1] = {jointPos, (part.CFrame * CF(0, -part.Size.Y * 0.4, 0)).Position}
+            elseif name:find("Foot") or name:find("Leg") then
+                result[#result + 1] = {jointPos, (part.CFrame * CF(0, -part.Size.Y * 0.5, 0)).Position}
+            end
+        end
+    end
+
+    return result
 end
 
 local function GetBoundingBox(character)
@@ -260,26 +113,59 @@ local function GetBoundingBox(character)
     local _, _, depth = WorldToScreen(rootPart.Position)
     if depth <= 0 then return nil end
 
-    local headPart = character:FindFirstChild("Head")
-    if not headPart then return nil end
+    local minY, maxY = math.huge, -math.huge
+    local minX, maxX = math.huge, -math.huge
 
-    local topPos = WorldToScreen((headPart.CFrame * CF(0, 0.75, 0)).Position)
-    local bottomPos = WorldToScreen((rootPart.CFrame * CF(0, -3, 0)).Position)
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            local cf = part.CFrame
+            local sz = part.Size
 
-    local height = math.abs(bottomPos.Y - topPos.Y)
-    local width = height * 0.55
-    local center = V2((topPos.X + bottomPos.X) / 2, (topPos.Y + bottomPos.Y) / 2)
+            local corners = {
+                cf * CF( sz.X/2,  sz.Y/2, 0),
+                cf * CF(-sz.X/2,  sz.Y/2, 0),
+                cf * CF( sz.X/2, -sz.Y/2, 0),
+                cf * CF(-sz.X/2, -sz.Y/2, 0)
+            }
+
+            for _, c in ipairs(corners) do
+                local sp, _, d = WorldToScreen(c.Position)
+                if d > 0 then
+                    if sp.X < minX then minX = sp.X end
+                    if sp.X > maxX then maxX = sp.X end
+                    if sp.Y < minY then minY = sp.Y end
+                    if sp.Y > maxY then maxY = sp.Y end
+                end
+            end
+        end
+    end
+
+    if minX == math.huge then return nil end
+
+    local width = maxX - minX
+    local height = maxY - minY
+
+    local padX = width * 0.05
+    local padY = height * 0.02
+
+    minX = minX - padX
+    maxX = maxX + padX
+    minY = minY - padY
+    maxY = maxY + padY
+
+    width = maxX - minX
+    height = maxY - minY
 
     return {
-        TopLeft = V2(center.X - width / 2, topPos.Y),
-        TopRight = V2(center.X + width / 2, topPos.Y),
-        BottomLeft = V2(center.X - width / 2, bottomPos.Y),
-        BottomRight = V2(center.X + width / 2, bottomPos.Y),
+        TopLeft = V2(minX, minY),
+        TopRight = V2(maxX, minY),
+        BottomLeft = V2(minX, maxY),
+        BottomRight = V2(maxX, maxY),
         Width = width,
         Height = height,
-        Center = center,
-        Top = topPos,
-        Bottom = bottomPos,
+        Center = V2(minX + width / 2, minY + height / 2),
+        Top = V2(minX + width / 2, minY),
+        Bottom = V2(minX + width / 2, maxY),
         Depth = depth
     }
 end
@@ -289,14 +175,31 @@ local function Get3DBoundingBox(character)
     if not rootPart then return nil end
 
     local cf = rootPart.CFrame
-    local size = V3(4, 6, 2)
-    local corners = {}
 
-    for _, sx in ipairs({1, -1}) do
-        for _, sy in ipairs({1, -1}) do
-            for _, sz in ipairs({1, -1}) do
-                local c = cf * CF(sx * size.X/2, sy * size.Y/2, sz * size.Z/2)
-                local sp, _, d = WorldToScreen(c.Position)
+    local minLocal = V3(math.huge, math.huge, math.huge)
+    local maxLocal = V3(-math.huge, -math.huge, -math.huge)
+
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            local rel = cf:PointToObjectSpace(part.Position)
+            local sz = part.Size / 2
+
+            local lo = rel - V3(sz.X, sz.Y, sz.Z)
+            local hi = rel + V3(sz.X, sz.Y, sz.Z)
+
+            minLocal = V3(math.min(minLocal.X, lo.X), math.min(minLocal.Y, lo.Y), math.min(minLocal.Z, lo.Z))
+            maxLocal = V3(math.max(maxLocal.X, hi.X), math.max(maxLocal.Y, hi.Y), math.max(maxLocal.Z, hi.Z))
+        end
+    end
+
+    if minLocal.X == math.huge then return nil end
+
+    local corners = {}
+    for _, sx in ipairs({minLocal.X, maxLocal.X}) do
+        for _, sy in ipairs({minLocal.Y, maxLocal.Y}) do
+            for _, sz in ipairs({minLocal.Z, maxLocal.Z}) do
+                local wp = cf:PointToWorldSpace(V3(sx, sy, sz))
+                local sp, _, d = WorldToScreen(wp)
                 if d <= 0 then return nil end
                 corners[#corners + 1] = sp
             end
@@ -370,7 +273,7 @@ function ESP:CreateESPObjects(player)
         obj.Box3DLines[i] = NewDrawing("Line", {Visible = false, Color = C3(255, 255, 255), Thickness = 1})
     end
 
-    for i = 1, MAX_BONES do
+    for i = 1, MAX_SKELETON do
         obj.SkeletonOutlines[i] = NewDrawing("Line", {Visible = false, Color = C3(0, 0, 0), Thickness = 3.5})
         obj.SkeletonLines[i] = NewDrawing("Line", {Visible = false, Color = C3(255, 255, 255), Thickness = 1.5})
     end
@@ -398,15 +301,9 @@ function ESP:RemoveESPObjects(player)
     for _, l in ipairs(obj.SkeletonLines) do l:Remove() end
     for _, l in ipairs(obj.SkeletonOutlines) do l:Remove() end
 
-    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
-        obj.ChamsHighlight:Destroy()
-    end
-    if obj.GlowVisible and obj.GlowVisible.Parent then
-        obj.GlowVisible:Destroy()
-    end
-    if obj.GlowHidden and obj.GlowHidden.Parent then
-        obj.GlowHidden:Destroy()
-    end
+    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then obj.ChamsHighlight:Destroy() end
+    if obj.GlowVisible and obj.GlowVisible.Parent then obj.GlowVisible:Destroy() end
+    if obj.GlowHidden and obj.GlowHidden.Parent then obj.GlowHidden:Destroy() end
 
     self.Objects[player] = nil
 end
@@ -428,22 +325,16 @@ function ESP:HideAll(obj)
     for _, l in ipairs(obj.SkeletonLines) do l.Visible = false end
     for _, l in ipairs(obj.SkeletonOutlines) do l.Visible = false end
 
-    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
-        obj.ChamsHighlight.Enabled = false
-    end
-    if obj.GlowVisible and obj.GlowVisible.Parent then
-        obj.GlowVisible.Enabled = false
-    end
-    if obj.GlowHidden and obj.GlowHidden.Parent then
-        obj.GlowHidden.Enabled = false
-    end
+    if obj.ChamsHighlight and obj.ChamsHighlight.Parent then obj.ChamsHighlight.Enabled = false end
+    if obj.GlowVisible and obj.GlowVisible.Parent then obj.GlowVisible.Enabled = false end
+    if obj.GlowHidden and obj.GlowHidden.Parent then obj.GlowHidden.Enabled = false end
 end
 
 function ESP:UpdateHighlights(obj, character)
     if self.Chams.Enabled then
         if not obj.ChamsHighlight or not obj.ChamsHighlight.Parent then
             local hl = Instance.new("Highlight")
-            hl.Name = "_chams"
+            hl.Name = "_ch"
             hl.Adornee = character
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             hl.Parent = character
@@ -456,25 +347,16 @@ function ESP:UpdateHighlights(obj, character)
         obj.ChamsHighlight.OutlineTransparency = self.Chams.OutlineTransparency
         obj.ChamsHighlight.Enabled = true
     else
-        if obj.ChamsHighlight and obj.ChamsHighlight.Parent then
-            obj.ChamsHighlight.Enabled = false
-        end
+        if obj.ChamsHighlight and obj.ChamsHighlight.Parent then obj.ChamsHighlight.Enabled = false end
     end
 
     if self.Glow.Enabled then
-        local glowFolder = character:FindFirstChild("_glowContainer")
-        if not glowFolder then
-            glowFolder = Instance.new("Model")
-            glowFolder.Name = "_glowContainer"
-            glowFolder.Parent = character
-        end
-
         if not obj.GlowVisible or not obj.GlowVisible.Parent then
             local hl = Instance.new("Highlight")
-            hl.Name = "_glowVis"
+            hl.Name = "_gv"
             hl.Adornee = character
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.Parent = glowFolder
+            hl.Parent = character
             obj.GlowVisible = hl
         end
         obj.GlowVisible.Adornee = character
@@ -486,10 +368,10 @@ function ESP:UpdateHighlights(obj, character)
 
         if not obj.GlowHidden or not obj.GlowHidden.Parent then
             local hl = Instance.new("Highlight")
-            hl.Name = "_glowHid"
+            hl.Name = "_gh"
             hl.Adornee = character
             hl.DepthMode = Enum.HighlightDepthMode.Occluded
-            hl.Parent = glowFolder
+            hl.Parent = character
             obj.GlowHidden = hl
         end
         obj.GlowHidden.Adornee = character
@@ -499,12 +381,8 @@ function ESP:UpdateHighlights(obj, character)
         obj.GlowHidden.OutlineTransparency = self.Glow.OutlineTransparency
         obj.GlowHidden.Enabled = true
     else
-        if obj.GlowVisible and obj.GlowVisible.Parent then
-            obj.GlowVisible.Enabled = false
-        end
-        if obj.GlowHidden and obj.GlowHidden.Parent then
-            obj.GlowHidden.Enabled = false
-        end
+        if obj.GlowVisible and obj.GlowVisible.Parent then obj.GlowVisible.Enabled = false end
+        if obj.GlowHidden and obj.GlowHidden.Parent then obj.GlowHidden.Enabled = false end
     end
 end
 
@@ -589,7 +467,7 @@ function ESP:UpdatePlayer(player)
         for _, l in ipairs(obj.Box3DLines) do l.Visible = false end
     end
 
-    local bottomTextOffset = 2
+    local bottomOff = 2
 
     if self.Name.Enabled then
         obj.NameText.Visible = true
@@ -601,20 +479,17 @@ function ESP:UpdatePlayer(player)
         if self.Name.Position == "Top" then
             obj.NameText.Position = V2(bb.Center.X, bb.Top.Y - self.Name.Size - 4)
         else
-            obj.NameText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomTextOffset)
-            bottomTextOffset = bottomTextOffset + self.Name.Size + 2
+            obj.NameText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomOff)
+            bottomOff = bottomOff + self.Name.Size + 2
         end
     else
         obj.NameText.Visible = false
     end
 
     if self.HealthBar.Enabled then
-        local barHeight = bb.Height
-        local healthRatio = math.clamp(health / maxHealth, 0, 1)
-        local filledHeight = barHeight * healthRatio
-        local barX = self.HealthBar.Position == "Left"
-            and (bb.TopLeft.X - 5)
-            or (bb.TopRight.X + 5)
+        local ratio = math.clamp(health / maxHealth, 0, 1)
+        local filled = bb.Height * ratio
+        local barX = self.HealthBar.Position == "Left" and (bb.TopLeft.X - 5) or (bb.TopRight.X + 5)
 
         if self.HealthBar.Outline then
             obj.HealthBarOutline.Visible = true
@@ -631,7 +506,7 @@ function ESP:UpdatePlayer(player)
         obj.HealthBarBG.Thickness = self.HealthBar.Width
 
         obj.HealthBar.Visible = true
-        obj.HealthBar.From = V2(barX, bb.Bottom.Y - filledHeight)
+        obj.HealthBar.From = V2(barX, bb.Bottom.Y - filled)
         obj.HealthBar.To = V2(barX, bb.Bottom.Y)
         obj.HealthBar.Thickness = self.HealthBar.Width
         obj.HealthBar.Color = healthColor
@@ -642,14 +517,12 @@ function ESP:UpdatePlayer(player)
     end
 
     if self.HealthText.Enabled and health < maxHealth then
-        local healthRatio = math.clamp(health / maxHealth, 0, 1)
-        local barX = self.HealthBar.Position == "Left"
-            and (bb.TopLeft.X - 5)
-            or (bb.TopRight.X + 5)
-        local filledHeight = bb.Height * healthRatio
+        local ratio = math.clamp(health / maxHealth, 0, 1)
+        local barX = self.HealthBar.Position == "Left" and (bb.TopLeft.X - 5) or (bb.TopRight.X + 5)
+        local filled = bb.Height * ratio
         obj.HealthText.Visible = true
         obj.HealthText.Text = tostring(math.floor(health))
-        obj.HealthText.Position = V2(barX, bb.Bottom.Y - filledHeight - self.HealthText.Size - 2)
+        obj.HealthText.Position = V2(barX, bb.Bottom.Y - filled - self.HealthText.Size - 2)
         obj.HealthText.Color = healthColor
         obj.HealthText.Size = self.HealthText.Size
         obj.HealthText.Font = self.HealthText.Font
@@ -660,11 +533,11 @@ function ESP:UpdatePlayer(player)
     if self.Weapon.Enabled then
         obj.WeaponText.Visible = true
         obj.WeaponText.Text = "[" .. GetTool(character) .. "]"
-        obj.WeaponText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomTextOffset)
+        obj.WeaponText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomOff)
         obj.WeaponText.Color = self.Weapon.Color
         obj.WeaponText.Size = self.Weapon.Size
         obj.WeaponText.Font = self.Weapon.Font
-        bottomTextOffset = bottomTextOffset + self.Weapon.Size + 2
+        bottomOff = bottomOff + self.Weapon.Size + 2
     else
         obj.WeaponText.Visible = false
     end
@@ -672,11 +545,11 @@ function ESP:UpdatePlayer(player)
     if self.Distance.Enabled then
         obj.DistanceText.Visible = true
         obj.DistanceText.Text = tostring(dist) .. "m"
-        obj.DistanceText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomTextOffset)
+        obj.DistanceText.Position = V2(bb.Center.X, bb.Bottom.Y + bottomOff)
         obj.DistanceText.Color = self.Distance.Color
         obj.DistanceText.Size = self.Distance.Size
         obj.DistanceText.Font = self.Distance.Font
-        bottomTextOffset = bottomTextOffset + self.Distance.Size + 2
+        bottomOff = bottomOff + self.Distance.Size + 2
     else
         obj.DistanceText.Visible = false
     end
@@ -701,44 +574,38 @@ function ESP:UpdatePlayer(player)
     end
 
     if self.Skeleton.Enabled then
-        local joints = GetJointPositions(character, humanoid)
+        local lines = GetSkeletonLines(character)
+        local count = math.min(#lines, MAX_SKELETON)
 
-        for i, bone in ipairs(BONES) do
-            local p1 = joints[bone[1]]
-            local p2 = joints[bone[2]]
+        for i = 1, count do
+            local p1, p2 = lines[i][1], lines[i][2]
+            local sp1, _, d1 = WorldToScreen(p1)
+            local sp2, _, d2 = WorldToScreen(p2)
 
-            if p1 and p2 then
-                local sp1, _, d1 = WorldToScreen(p1)
-                local sp2, _, d2 = WorldToScreen(p2)
+            if d1 > 0 and d2 > 0 then
+                obj.SkeletonOutlines[i].Visible = true
+                obj.SkeletonOutlines[i].From = sp1
+                obj.SkeletonOutlines[i].To = sp2
+                obj.SkeletonOutlines[i].Thickness = self.Skeleton.Thickness + 2
+                obj.SkeletonOutlines[i].Color = C3(0, 0, 0)
 
-                if d1 > 0 and d2 > 0 then
-                    obj.SkeletonOutlines[i].Visible = true
-                    obj.SkeletonOutlines[i].From = sp1
-                    obj.SkeletonOutlines[i].To = sp2
-                    obj.SkeletonOutlines[i].Thickness = self.Skeleton.Thickness + 2
-                    obj.SkeletonOutlines[i].Color = C3(0, 0, 0)
-
-                    obj.SkeletonLines[i].Visible = true
-                    obj.SkeletonLines[i].From = sp1
-                    obj.SkeletonLines[i].To = sp2
-                    obj.SkeletonLines[i].Color = self.Skeleton.Color
-                    obj.SkeletonLines[i].Thickness = self.Skeleton.Thickness
-                else
-                    obj.SkeletonOutlines[i].Visible = false
-                    obj.SkeletonLines[i].Visible = false
-                end
+                obj.SkeletonLines[i].Visible = true
+                obj.SkeletonLines[i].From = sp1
+                obj.SkeletonLines[i].To = sp2
+                obj.SkeletonLines[i].Color = self.Skeleton.Color
+                obj.SkeletonLines[i].Thickness = self.Skeleton.Thickness
             else
                 obj.SkeletonOutlines[i].Visible = false
                 obj.SkeletonLines[i].Visible = false
             end
         end
 
-        for i = #BONES + 1, MAX_BONES do
+        for i = count + 1, MAX_SKELETON do
             obj.SkeletonOutlines[i].Visible = false
             obj.SkeletonLines[i].Visible = false
         end
     else
-        for i = 1, MAX_BONES do
+        for i = 1, MAX_SKELETON do
             obj.SkeletonOutlines[i].Visible = false
             obj.SkeletonLines[i].Visible = false
         end
